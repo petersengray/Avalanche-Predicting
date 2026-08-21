@@ -1,0 +1,7 @@
+pvlib
+numpy
+pandas
+matplotlib
+scipy
+rasterio
+requests
