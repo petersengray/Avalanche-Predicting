@@ -1,0 +1,7 @@
+# Just what the daily GitHub Actions job needs (no rasterio / DEM tools).
+pvlib
+numpy
+pandas
+scipy
+requests
+pyyaml

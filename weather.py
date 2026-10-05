@@ -112,3 +112,35 @@ def cloud_attenuation_factor(cloud_fraction):
     commonly used approximation, not a radiative-transfer calculation.
     """
     return np.clip((1 - cloud_fraction) ** 3, 0, 1)
+
+
+def get_hourly_grid(lat, lon, tz="America/Los_Angeles", timeout=20):
+    """
+    Full NWS hourly forecast (about 7 days) for the grid cell containing
+    (lat, lon). Returns (DataFrame indexed by local time with temp_c and
+    cloud_fraction, grid_elevation_m, grid_id). Raises on failure -- the
+    caller decides what to fall back to.
+    """
+    headers = {"User-Agent": NWS_USER_AGENT, "Accept": "application/geo+json"}
+    r = requests.get(f"https://api.weather.gov/points/{lat:.4f},{lon:.4f}",
+                     headers=headers, timeout=timeout)
+    r.raise_for_status()
+    props = r.json()["properties"]
+    grid_id = f"{props['gridId']}/{props['gridX']},{props['gridY']}"
+    r2 = requests.get(props["forecastGridData"], headers=headers, timeout=timeout)
+    r2.raise_for_status()
+    g = r2.json()["properties"]
+    temp = _expand_nws_time_series(g["temperature"]["values"])
+    sky = _expand_nws_time_series(g["skyCover"]["values"])
+    df = pd.concat({"temp_c": temp, "cloud_fraction": sky / 100.0}, axis=1).dropna()
+    df.index = df.index.tz_convert(tz)
+    elev_m = float(g.get("elevation", {}).get("value") or np.nan)
+    return df, elev_m, grid_id
+
+
+def synthetic_hourly(start, days, t_min_c, t_max_c, tz="America/Los_Angeles"):
+    """Clear-sky sinusoidal stand-in for get_hourly_grid (testing / offline)."""
+    idx = pd.date_range(pd.Timestamp(start).normalize() - pd.Timedelta(days=1),
+                        periods=24 * (days + 2), freq="h", tz=tz)
+    temp = risk_model.diurnal_temperature(idx, t_min_c, t_max_c)
+    return pd.DataFrame({"temp_c": temp, "cloud_fraction": 0.0}, index=idx)

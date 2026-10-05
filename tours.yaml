@@ -1,0 +1,167 @@
+# West Shore Lake Tahoe tours
+# ---------------------------
+# One entry per tour: a summit and the "slopes" (ski areas) the model tracks.
+#
+# Ski-area outlines come from ski_areas.geojson, traced from guidebook route
+# maps and matched to the elevation model using summits and lakes. Each slope
+# here is linked to its outline by `id`. Any slope WITHOUT a traced outline
+# falls back to automatic detection from the elevation model using:
+#
+#   aspect_range   compass bearings the slope faces, [from, to], clockwise
+#   min_slope_deg / max_slope_deg   steepness band
+#   min_elev_ft    lowest elevation to include
+#   max_dist_m     how far from the summit (or `start`) to look
+#
+# Summits are snapped to the true DEM high point within snap_radius_m.
+
+region:
+  name: West Shore Lake Tahoe
+  timezone: America/Los_Angeles
+  # bbox covering every tour, [west, south, east, north] in degrees
+  bbox: [-120.185, 38.885, -120.075, 39.005]
+  dem_resolution_m: 10
+  avalanche_center: https://www.sierraavalanchecenter.org/forecasts
+
+ski_areas: ski_areas.geojson
+
+tours:
+  - id: rubicon
+    name: Rubicon Peak
+    summit: {lat: 38.98868, lon: -120.13339, elev_ft: 9183}
+    slopes:
+      - id: rubicon-east
+        name: Northeast and east faces from the summit
+        aspect_range: [30, 120]
+        min_slope_deg: 25
+        max_slope_deg: 50
+        min_elev_ft: 7400
+        max_dist_m: 1500
+
+  - id: hidden
+    name: Hidden Peak
+    # 9,180 ft per guidebook map; just north of Jakes. (The 9,245 ft point
+    # south of Rubicon is "Peak 9269" on the maps, not Hidden Peak.)
+    summit: {lat: 38.97511, lon: -120.12435, elev_ft: 9180}
+    snap_radius_m: 150
+    slopes:
+      - id: hidden-east
+        name: Northeast-facing trees from the cirque to the highway
+        aspect_range: [20, 110]
+        min_slope_deg: 25
+        max_slope_deg: 45
+        min_elev_ft: 6600
+        max_dist_m: 2000
+
+  - id: jakes-ne
+    name: Jakes Peak — Northeast side
+    summit: {lat: 38.97031, lon: -120.12304, elev_ft: 9187}
+    slopes:
+      - id: jakes-ne-bowl
+        name: Northeast trees, east gully, east bowl
+        aspect_range: [0, 110]
+        min_slope_deg: 25
+        max_slope_deg: 50
+        min_elev_ft: 7000
+        max_dist_m: 1500
+
+  - id: jakes-south
+    name: Jakes Peak — South side
+    summit: {lat: 38.97031, lon: -120.12304, elev_ft: 9187}
+    slopes:
+      - id: jakes-south-face
+        name: Southeast face, Y Chute, south gully, South Jakes Trees, Vikingsholm & Emerald Bay chutes
+        start: {lat: 38.96730, lon: -120.11809}
+        aspect_range: [100, 210]
+        min_slope_deg: 25
+        max_slope_deg: 50
+        min_elev_ft: 6600
+        max_dist_m: 1500
+
+  - id: maggies
+    name: Maggies Peaks
+    # Twin summits: North 8,499 ft, South 8,699 ft. Summit here = South.
+    summit: {lat: 38.93114, lon: -120.11378, elev_ft: 8699}
+    slopes:
+      - id: maggies-north-slope
+        name: Maggies North — north slope to Eagle Falls
+        aspect_range: [315, 45]
+        min_slope_deg: 25
+        max_slope_deg: 50
+        min_elev_ft: 6600
+        max_dist_m: 1500
+      - id: maggies-north-east
+        name: Maggies North — northeast to southeast side
+        # The whole NE-to-SE side of Maggies North is skiable.
+        summit: {lat: 38.94125, lon: -120.11464, elev_ft: 8499}
+        whole_face: true
+        aspect_range: [30, 160]
+        min_slope_deg: 15
+        max_slope_deg: 60
+        min_elev_ft: 6850
+        max_dist_m: 1300
+      - id: maggies-south-ne
+        name: Maggies South — northeast face past Granite Lake
+        aspect_range: [0, 90]
+        min_slope_deg: 25
+        max_slope_deg: 50
+        min_elev_ft: 7000
+        max_dist_m: 1800
+
+  - id: janine
+    name: Janines Peak
+    summit: {lat: 38.90668, lon: -120.13069, elev_ft: 9579}
+    slopes:
+      - id: janine-east
+        name: East face to Azure Lake
+        aspect_range: [20, 120]
+        min_slope_deg: 25
+        max_slope_deg: 50
+        min_elev_ft: 7600
+        max_dist_m: 1600
+
+  - id: dicks
+    name: Dicks Peak
+    summit: {lat: 38.90051, lon: -120.15101, elev_ft: 9974}
+    slopes:
+      - id: dicks-north-east
+        name: North face to Dicks Lake
+        aspect_range: [330, 90]
+        min_slope_deg: 25
+        max_slope_deg: 55
+        min_elev_ft: 8400
+        max_dist_m: 1200
+      - id: dicks-south
+        name: South face to Half Moon Lake
+        # The whole south face is skiable.
+        whole_face: true
+        aspect_range: [110, 215]
+        min_slope_deg: 15
+        max_slope_deg: 60
+        min_elev_ft: 8150
+        max_dist_m: 1300
+
+  - id: tallac
+    name: Mount Tallac
+    summit: {lat: 38.90590, lon: -120.09900, elev_ft: 9735}
+    slopes:
+      - id: tallac-north
+        name: North bowl, The Corkscrew, Corkscrew Trees, east ridge
+        aspect_range: [330, 60]
+        min_slope_deg: 25
+        max_slope_deg: 55
+        min_elev_ft: 7000
+        max_dist_m: 1800
+      - id: tallac-east
+        name: The Cross and Cross Bowl
+        aspect_range: [30, 120]
+        min_slope_deg: 25
+        max_slope_deg: 55
+        min_elev_ft: 7500
+        max_dist_m: 1500
+      - id: tallac-cathedral
+        name: Cathedral Bowl (southeast)
+        aspect_range: [100, 200]
+        min_slope_deg: 25
+        max_slope_deg: 50
+        min_elev_ft: 7500
+        max_dist_m: 1500
