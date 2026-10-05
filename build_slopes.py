@@ -224,6 +224,18 @@ def write_slope_cells(slope_masks, features, elev, slope_deg, aspect_deg, transf
     print(f"wrote {path}")
 
 
+def write_web_areas(features, path):
+    """Slim copy of the ski-area outlines for the webpage (GitHub Pages
+    only serves files under docs/)."""
+    keep = ("tour_id", "tour_name", "slope_id", "slope_name", "area_ha", "mean_slope_deg",
+            "mean_aspect_deg", "elev_min_ft", "elev_max_ft", "pct_30_45_deg")
+    out = [{"type": "Feature", "geometry": f["geometry"],
+            "properties": {k: f["properties"][k] for k in keep}} for f in features]
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as fh:
+        json.dump({"type": "FeatureCollection", "features": out}, fh, separators=(",", ":"))
+
+
 # -------------------------------------------------------------- main ----
 
 def build(config_path="tours.yaml", dem_path=None, preview=True):
@@ -312,6 +324,7 @@ def build(config_path="tours.yaml", dem_path=None, preview=True):
     out = os.path.join(DATA_DIR, "slopes.geojson")
     with open(out, "w") as f:
         json.dump({"type": "FeatureCollection", "region": region, "features": features_out}, f)
+    write_web_areas(features_out, os.path.join("docs", "data", "areas.geojson"))
     print("\n".join(report))
     write_slope_cells(slope_masks, features_out, elev, slope_deg, aspect_deg, transform, crs,
                       cell_m, os.path.join(DATA_DIR, "slope_cells.npz"))
