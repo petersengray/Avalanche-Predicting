@@ -113,27 +113,46 @@ def fetch_3dep_dem(lat, lon, radius_km=2.0, resolution_m=10, out_path="dem.tif",
     works fine from a normal machine with internet access.
 
     radius_km    : half-width of the square tile to download
-    resolution_m : target pixel size in meters (output is reprojected to
-                   Web Mercator (EPSG:3857) so cell_size_m is ~meters;
-                   accuracy degrades somewhat at high latitudes due to
-                   Mercator distortion -- fine for most US ski terrain,
-                   worth reprojecting to a local UTM zone instead if you
-                   need survey-grade precision)
+    resolution_m : target pixel size in meters. Output is in the local
+                   UTM zone so pixels are true ground meters. (An earlier
+                   version used Web Mercator, EPSG:3857, whose "meters" are
+                   stretched by 1/cos(lat) -- ~29% at Tahoe -- which made
+                   every computed slope angle too shallow.)
 
     Returns the path to the downloaded GeoTIFF; load it with
     `load_dem_geotiff()`.
     """
     dlat = radius_km / 111.0
     dlon = radius_km / (111.0 * np.cos(np.radians(lat)))
-    bbox = f"{lon - dlon},{lat - dlat},{lon + dlon},{lat + dlat}"
+    bbox = [lon - dlon, lat - dlat, lon + dlon, lat + dlat]
+    return fetch_3dep_bbox(bbox, utm_epsg(lon, lat), resolution_m=resolution_m,
+                           out_path=out_path, timeout=timeout)
 
-    side_px = max(64, int(2 * radius_km * 1000 / resolution_m))
+
+def utm_epsg(lon, lat):
+    """EPSG code of the WGS84 UTM zone containing (lon, lat)."""
+    zone = int((lon + 180) // 6) + 1
+    return (32600 if lat >= 0 else 32700) + zone
+
+
+def fetch_3dep_bbox(bbox, epsg, resolution_m=10, out_path="dem.tif", timeout=120):
+    """
+    Download 3DEP elevation for a lon/lat bbox [west, south, east, north],
+    reprojected by the server into `epsg` (a metric CRS such as UTM) at
+    ~resolution_m pixels. Returns out_path.
+    """
+    import requests
+    from rasterio.warp import transform_bounds
+
+    xmin, ymin, xmax, ymax = transform_bounds("EPSG:4326", f"EPSG:{epsg}", *bbox)
+    width = max(64, int(round((xmax - xmin) / resolution_m)))
+    height = max(64, int(round((ymax - ymin) / resolution_m)))
 
     params = {
-        "bbox": bbox,
-        "bboxSR": 4326,
-        "size": f"{side_px},{side_px}",
-        "imageSR": 3857,
+        "bbox": f"{xmin},{ymin},{xmax},{ymax}",
+        "bboxSR": epsg,
+        "size": f"{width},{height}",
+        "imageSR": epsg,
         "format": "tiff",
         "pixelType": "F32",
         "noDataInterpretation": "esriNoDataMatchAny",
@@ -141,9 +160,10 @@ def fetch_3dep_dem(lat, lon, radius_km=2.0, resolution_m=10, out_path="dem.tif",
         "f": "image",
     }
 
-    import requests
     resp = requests.get(USGS_3DEP_EXPORT_URL, params=params, timeout=timeout)
     resp.raise_for_status()
+    if not resp.content[:4] in (b"II*\x00", b"MM\x00*"):
+        raise RuntimeError(f"3DEP did not return a GeoTIFF: {resp.text[:300]}")
     with open(out_path, "wb") as f:
         f.write(resp.content)
     return out_path
