@@ -100,7 +100,8 @@ def circular_mean_deg(a):
     return (math.degrees(math.atan2(np.sin(r).mean(), np.cos(r).mean())) + 360) % 360
 
 
-def slope_mask(elev, slope_deg, aspect_deg, cell_m, sr, sc, spec, other_summits=()):
+def slope_mask(elev, slope_deg, aspect_deg, cell_m, sr, sc, spec, other_summits=(),
+               owner=None):
     """Cells matching the slope spec, kept only if connected to terrain
     near the summit (so we get the faces that drop off THIS peak, not a
     random gully 1 km away). Cells closer to another tour's summit are
@@ -111,35 +112,44 @@ def slope_mask(elev, slope_deg, aspect_deg, cell_m, sr, sc, spec, other_summits=
     rows, cols = elev.shape
     rr, cc = np.mgrid[0:rows, 0:cols]
     dist_m = np.hypot(rr - sr, cc - sc) * cell_m
+    # Which summit "owns" each cell (nearest summit wins).
+    orow0, ocol0 = owner if owner else (sr, sc)
+    d_owner = np.hypot(rr - orow0, cc - ocol0) * cell_m
     own = np.ones(elev.shape, dtype=bool)
     for (orow, ocol) in other_summits:
-        own &= dist_m <= np.hypot(rr - orow, cc - ocol) * cell_m
+        own &= d_owner <= np.hypot(rr - orow, cc - ocol) * cell_m
 
-    m = (
-        own &
-        aspect_in_range(aspect_deg, *spec["aspect_range"])
-        & (slope_deg >= spec["min_slope_deg"])
-        & (slope_deg <= spec["max_slope_deg"])
+    in_area = (
+        own
         & (elev >= spec["min_elev_ft"] / FT_PER_M)
         & (dist_m <= spec["max_dist_m"])
         & np.isfinite(elev)
     )
-    # Close small gaps (trees/benches make the raw mask speckly).
-    m = ndimage.binary_closing(m, structure=np.ones((3, 3)), iterations=2) & (dist_m <= spec["max_dist_m"]) & own
-    m = ndimage.binary_opening(m, structure=np.ones((2, 2)))
 
-    labels, n = ndimage.label(m)
+    # 1) The FACE: everything facing the right way that is connected to the
+    #    summit area, regardless of steepness. Faces often start as a gentle
+    #    shoulder and only steepen lower down, so steepness must not break
+    #    the connection to the summit.
+    face = in_area & aspect_in_range(aspect_deg, *spec["aspect_range"])
+    face = ndimage.binary_closing(face, structure=np.ones((3, 3)), iterations=2) & in_area
+    labels, n = ndimage.label(face)
     if n == 0:
-        return m
+        return face
     near = dist_m <= max(250.0, 0.25 * spec["max_dist_m"])
     keep_ids = np.unique(labels[near & (labels > 0)])
     if keep_ids.size == 0:  # nothing touches the summit area: keep the biggest
-        sizes = ndimage.sum(m, labels, range(1, n + 1))
+        sizes = ndimage.sum(face, labels, range(1, n + 1))
         keep_ids = [int(np.argmax(sizes)) + 1]
-    keep = np.isin(labels, keep_ids)
+    face = np.isin(labels, keep_ids)
+
+    # 2) The SKI TERRAIN: the part of that face inside the steepness band.
+    m = face & (slope_deg >= spec["min_slope_deg"]) & (slope_deg <= spec["max_slope_deg"])
+    m = ndimage.binary_closing(m, structure=np.ones((3, 3))) & face
+    m = ndimage.binary_opening(m, structure=np.ones((2, 2)))
+
     # Drop specks under ~0.5 ha.
-    labels2, n2 = ndimage.label(keep)
-    sizes = ndimage.sum(keep, labels2, range(1, n2 + 1))
+    labels2, n2 = ndimage.label(m)
+    sizes = ndimage.sum(m, labels2, range(1, n2 + 1))
     min_px = 5000 / cell_m ** 2
     return np.isin(labels2, [i + 1 for i, s in enumerate(sizes) if s >= min_px])
 
@@ -187,8 +197,13 @@ def build(config_path="tours.yaml", dem_path=None, preview=True):
         summits.append((sr, sc, tour["name"]))
 
         for spec in tour["slopes"]:
-            m = slope_mask(elev, slope_deg, aspect_deg, cell_m, sr, sc, spec, others)
-            overlay[m] = t_i
+            # A slope can set its own `start` (top of the run) when the skied
+            # face begins below a flat shoulder rather than at the summit.
+            ar, ac = (to_pixel(transform, crs, spec["start"]["lat"], spec["start"]["lon"])
+                      if "start" in spec else (sr, sc))
+            m = slope_mask(elev, slope_deg, aspect_deg, cell_m, ar, ac, spec, others,
+                           owner=(sr, sc))
+            overlay[m] = len(features_out) + 1
             geom = mask_to_geojson(m, transform, crs)
             if geom is None:
                 report.append(f"    {spec['id']:<22} NO TERRAIN MATCHED — loosen the spec")
@@ -235,10 +250,17 @@ def render_preview(elev, cell_m, overlay, summits, cfg, path):
     cs = ax.contour(elev * FT_PER_M, levels=np.arange(6400, 10200, 400), colors="k",
                     linewidths=0.3, alpha=0.5)
     ax.clabel(cs, fmt="%d", fontsize=5)
-    cmap = plt.get_cmap("tab10")
-    for i, tour in enumerate(cfg["tours"], start=1):
+    colors = ["#e6194b", "#3cb44b", "#4363d8", "#f58231", "#911eb4", "#42d4f4",
+              "#f032e6", "#9a6324", "#469990", "#800000", "#808000", "#000075"]
+    for i in range(1, overlay.max() + 1):
         ov = np.ma.masked_where(overlay != i, overlay)
-        ax.imshow(ov, cmap=matplotlib.colors.ListedColormap([cmap((i - 1) % 10)]), alpha=0.55)
+        ax.imshow(ov, cmap=matplotlib.colors.ListedColormap([colors[(i - 1) % len(colors)]]),
+                  alpha=0.6, interpolation="nearest")
+    labelled = {}
+    for (r, c, name) in summits:
+        labelled.setdefault((r, c), []).append(name)
+    summits = [(r, c, " / ".join(dict.fromkeys(n.split(" — ")[0] for n in names)))
+               for (r, c), names in labelled.items()]
     for (r, c, name) in summits:
         ax.plot(c, r, "k^", ms=6)
         ax.annotate(name, (c, r), xytext=(5, 5), textcoords="offset points", fontsize=7,

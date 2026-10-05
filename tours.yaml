@@ -42,10 +42,11 @@ tours:
 
   - id: hidden
     name: Hidden Peak (Bliss Peak)
-    # Between Jakes and Rubicon, above D.L. Bliss SP (~9,200 ft).
-    # Coordinate is APPROXIMATE — confirm the snapped point is the right summit.
-    summit: {lat: 38.9790, lon: -120.1300, elev_ft: 9200}
-    snap_radius_m: 600
+    # Between Jakes and Rubicon, above D.L. Bliss SP (~9,200 ft). Set to the
+    # 9,245 ft DEM high point ~550 m SSE of Rubicon. The other candidate is a
+    # 9,170 ft point ~500 m N of Jakes (38.97511, -120.12435). CHECK
+    summit: {lat: 38.98363, lon: -120.12966, elev_ft: 9245}
+    snap_radius_m: 150
     slopes:
       - id: hidden-east
         name: East-facing trees toward Bliss
@@ -75,7 +76,10 @@ tours:
     slopes:
       - id: jakes-south-face
         name: South / Southeast face toward Emerald Bay
-        aspect_range: [120, 210]
+        # The south side starts below a flat shoulder; anchor on the
+        # sub-summit (~9,175 ft) on Jakes' south ridge. CHECK
+        start: {lat: 38.96730, lon: -120.11809}
+        aspect_range: [100, 210]
         min_slope_deg: 28
         max_slope_deg: 50
         min_elev_ft: 7000
