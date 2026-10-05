@@ -168,6 +168,22 @@ def mask_to_geojson(mask, transform, crs):
     return transform_geom(crs, "EPSG:4326", mapping(geom), precision=6)
 
 
+def load_drawn_areas(path):
+    """slope_id -> GeoJSON geometry (WGS84) from a hand-traced FeatureCollection."""
+    if not path or not os.path.exists(path):
+        return {}
+    with open(path) as f:
+        fc = json.load(f)
+    return {ft["properties"]["slope_id"]: ft["geometry"] for ft in fc["features"]}
+
+
+def polygon_mask(geom_ll, shape, transform, crs):
+    from rasterio import features
+    from rasterio.warp import transform_geom
+    g = transform_geom("EPSG:4326", crs, geom_ll)
+    return features.geometry_mask([g], out_shape=shape, transform=transform, invert=True)
+
+
 # -------------------------------------------------------------- main ----
 
 def build(config_path="tours.yaml", dem_path=None, preview=True):
@@ -180,6 +196,7 @@ def build(config_path="tours.yaml", dem_path=None, preview=True):
     cell_m = abs(transform.a)
     slope_deg, aspect_deg = terrain.slope_aspect(np.nan_to_num(elev, nan=np.nanmin(elev)), cell_m)
 
+    drawn = load_drawn_areas(cfg.get("ski_areas", "ski_areas.geojson"))
     features_out, report, overlay = [], [], np.zeros(elev.shape, dtype=int)
     summits = []
     snapped = [snap_summit(elev, transform, crs, cell_m, t["summit"],
@@ -201,10 +218,20 @@ def build(config_path="tours.yaml", dem_path=None, preview=True):
             # face begins below a flat shoulder rather than at the summit.
             ar, ac = (to_pixel(transform, crs, spec["start"]["lat"], spec["start"]["lon"])
                       if "start" in spec else (sr, sc))
-            m = slope_mask(elev, slope_deg, aspect_deg, cell_m, ar, ac, spec, others,
-                           owner=(sr, sc))
+            if spec["id"] in drawn:
+                # Hand-traced ski area (ski_areas.geojson) wins over the
+                # automatic aspect/steepness detection.
+                geom = drawn[spec["id"]]
+                m = polygon_mask(geom, elev.shape, transform, crs)
+                source = "traced"
+            else:
+                m = slope_mask(elev, slope_deg, aspect_deg, cell_m, ar, ac, spec, others,
+                               owner=(sr, sc))
+                geom = mask_to_geojson(m, transform, crs)
+                source = "derived"
             overlay[m] = len(features_out) + 1
-            geom = mask_to_geojson(m, transform, crs)
+            if not m.any():
+                geom = None
             if geom is None:
                 report.append(f"    {spec['id']:<22} NO TERRAIN MATCHED — loosen the spec")
                 continue
@@ -218,10 +245,12 @@ def build(config_path="tours.yaml", dem_path=None, preview=True):
                 "mean_aspect_deg": round(circular_mean_deg(aspect_deg[m]), 0),
                 "elev_min_ft": int(np.nanmin(elev[m]) * FT_PER_M),
                 "elev_max_ft": int(np.nanmax(elev[m]) * FT_PER_M),
+                "pct_30_45_deg": round(float(((slope_deg[m] >= 30) & (slope_deg[m] <= 45)).mean() * 100), 0),
+                "source": source,
                 "spec": spec,
             }
             features_out.append({"type": "Feature", "geometry": geom, "properties": props})
-            report.append(f"    {spec['id']:<22} {props['area_ha']:6.1f} ha  "
+            report.append(f"    {spec['id']:<22} [{source}] {props['area_ha']:6.1f} ha  "
                           f"slope {props['mean_slope_deg']:4.1f}° (p90 {props['p90_slope_deg']})  "
                           f"aspect {props['mean_aspect_deg']:3.0f}°  "
                           f"{props['elev_min_ft']}-{props['elev_max_ft']} ft")
@@ -265,7 +294,7 @@ def render_preview(elev, cell_m, overlay, summits, cfg, path):
         ax.plot(c, r, "k^", ms=6)
         ax.annotate(name, (c, r), xytext=(5, 5), textcoords="offset points", fontsize=7,
                     bbox=dict(boxstyle="round,pad=0.2", fc="white", alpha=0.8))
-    ax.set_title(f"{cfg['region']['name']} — derived ski slopes (north up)")
+    ax.set_title(f"{cfg['region']['name']} — ski areas (north up)")
     ax.set_axis_off()
     fig.tight_layout()
     fig.savefig(path)

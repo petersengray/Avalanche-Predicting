@@ -2,3 +2,5 @@ __pycache__/
 data/region_dem.tif
 *.tif
 .venv/
+maps/
+.DS_Store

@@ -1,22 +1,18 @@
 # West Shore Lake Tahoe tours
 # ---------------------------
-# One entry per tour. Each tour has a summit and one or more "slopes" — the
-# ski terrain the model tracks. build_slopes.py turns each slope definition
-# into an actual polygon using the USGS 3DEP elevation model:
+# One entry per tour: a summit and the "slopes" (ski areas) the model tracks.
+#
+# Ski-area outlines come from ski_areas.geojson, traced from guidebook route
+# maps and matched to the elevation model using summits and lakes. Each slope
+# here is linked to its outline by `id`. Any slope WITHOUT a traced outline
+# falls back to automatic detection from the elevation model using:
 #
 #   aspect_range   compass bearings the slope faces, [from, to], clockwise
-#                  (e.g. [0, 90] = N through E; [315, 45] wraps through N)
-#   min_slope_deg  steepness band to include (avalanche terrain ~ 30-45)
-#   max_slope_deg
+#   min_slope_deg / max_slope_deg   steepness band
 #   min_elev_ft    lowest elevation to include
-#   max_dist_m     how far from the summit to look
+#   max_dist_m     how far from the summit (or `start`) to look
 #
-# Summit coordinates come from public peak lists (sources noted); the build
-# script snaps each one to the true high point in the DEM within
-# snap_radius_m and reports the snapped elevation so you can sanity-check it.
-#
-# Aspects marked `# CHECK` are my best guess at the skied faces — edit them
-# to match what people actually ski.
+# Summits are snapped to the true DEM high point within snap_radius_m.
 
 region:
   name: West Shore Lake Tahoe
@@ -26,120 +22,141 @@ region:
   dem_resolution_m: 10
   avalanche_center: https://www.sierraavalanchecenter.org/forecasts
 
+ski_areas: ski_areas.geojson
+
 tours:
   - id: rubicon
     name: Rubicon Peak
-    summit: {lat: 38.98861, lon: -120.13333, elev_ft: 9187}   # Wikipedia
-    snap_radius_m: 300
+    summit: {lat: 38.98868, lon: -120.13339, elev_ft: 9183}
     slopes:
       - id: rubicon-east
-        name: East / Northeast faces
-        aspect_range: [30, 120]      # CHECK
-        min_slope_deg: 28
+        name: Northeast and east faces from the summit
+        aspect_range: [30, 120]
+        min_slope_deg: 25
         max_slope_deg: 50
         min_elev_ft: 7400
         max_dist_m: 1500
 
   - id: hidden
-    name: Hidden Peak (Bliss Peak)
-    # Between Jakes and Rubicon, above D.L. Bliss SP (~9,200 ft). Set to the
-    # 9,245 ft DEM high point ~550 m SSE of Rubicon. The other candidate is a
-    # 9,170 ft point ~500 m N of Jakes (38.97511, -120.12435). CHECK
-    summit: {lat: 38.98363, lon: -120.12966, elev_ft: 9245}
+    name: Hidden Peak
+    # 9,180 ft per guidebook map; just north of Jakes. (The 9,245 ft point
+    # south of Rubicon is "Peak 9269" on the maps, not Hidden Peak.)
+    summit: {lat: 38.97511, lon: -120.12435, elev_ft: 9180}
     snap_radius_m: 150
     slopes:
       - id: hidden-east
-        name: East-facing trees toward Bliss
-        aspect_range: [45, 135]      # CHECK
+        name: Northeast-facing trees from the cirque to the highway
+        aspect_range: [20, 110]
         min_slope_deg: 25
         max_slope_deg: 45
-        min_elev_ft: 7200
-        max_dist_m: 1500
+        min_elev_ft: 6600
+        max_dist_m: 2000
 
   - id: jakes-ne
     name: Jakes Peak — Northeast side
-    summit: {lat: 38.97000, lon: -120.12250, elev_ft: 9187}   # Wikipedia
-    snap_radius_m: 300
+    summit: {lat: 38.97031, lon: -120.12304, elev_ft: 9187}
     slopes:
       - id: jakes-ne-bowl
-        name: Northeast bowl and trees
-        aspect_range: [0, 90]
-        min_slope_deg: 28
-        max_slope_deg: 50
-        min_elev_ft: 7200
-        max_dist_m: 1500
-
-  - id: jakes-south
-    name: Jakes Peak — South side
-    summit: {lat: 38.97000, lon: -120.12250, elev_ft: 9187}
-    snap_radius_m: 300
-    slopes:
-      - id: jakes-south-face
-        name: South / Southeast face toward Emerald Bay
-        # The south side starts below a flat shoulder; anchor on the
-        # sub-summit (~9,175 ft) on Jakes' south ridge. CHECK
-        start: {lat: 38.96730, lon: -120.11809}
-        aspect_range: [100, 210]
-        min_slope_deg: 28
+        name: Northeast trees, east gully, east bowl
+        aspect_range: [0, 110]
+        min_slope_deg: 25
         max_slope_deg: 50
         min_elev_ft: 7000
         max_dist_m: 1500
 
+  - id: jakes-south
+    name: Jakes Peak — South side
+    summit: {lat: 38.97031, lon: -120.12304, elev_ft: 9187}
+    slopes:
+      - id: jakes-south-face
+        name: Southeast face, Y Chute, south gully, South Jakes Trees, Vikingsholm & Emerald Bay chutes
+        start: {lat: 38.96730, lon: -120.11809}
+        aspect_range: [100, 210]
+        min_slope_deg: 25
+        max_slope_deg: 50
+        min_elev_ft: 6600
+        max_dist_m: 1500
+
   - id: maggies
     name: Maggies Peaks
-    summit: {lat: 38.93167, lon: -120.11389, elev_ft: 8703}   # Wikipedia (North Maggie)
-    snap_radius_m: 300
+    # Twin summits: North 8,499 ft, South 8,699 ft. Summit here = South.
+    summit: {lat: 38.93114, lon: -120.11378, elev_ft: 8699}
     slopes:
-      - id: maggies-north-east
-        name: North / East faces
-        aspect_range: [0, 110]       # CHECK
-        min_slope_deg: 28
+      - id: maggies-north-slope
+        name: Maggies North — north slope to Eagle Falls
+        aspect_range: [315, 45]
+        min_slope_deg: 25
         max_slope_deg: 50
-        min_elev_ft: 7200
-        max_dist_m: 1200
+        min_elev_ft: 6600
+        max_dist_m: 1500
+      - id: maggies-north-east
+        name: Maggies North — east side toward Bayview
+        aspect_range: [45, 135]
+        min_slope_deg: 25
+        max_slope_deg: 50
+        min_elev_ft: 6800
+        max_dist_m: 1500
+      - id: maggies-south-ne
+        name: Maggies South — northeast face past Granite Lake
+        aspect_range: [0, 90]
+        min_slope_deg: 25
+        max_slope_deg: 50
+        min_elev_ft: 7000
+        max_dist_m: 1800
 
   - id: janine
-    name: Janine Peak
-    summit: {lat: 38.90670, lon: -120.13093, elev_ft: 9579}   # SummitPost
-    snap_radius_m: 300
+    name: Janines Peak
+    summit: {lat: 38.90668, lon: -120.13069, elev_ft: 9579}
     slopes:
       - id: janine-east
-        name: East / Northeast faces
-        aspect_range: [20, 120]      # CHECK
-        min_slope_deg: 28
+        name: East face to Azure Lake
+        aspect_range: [20, 120]
+        min_slope_deg: 25
         max_slope_deg: 50
-        min_elev_ft: 8000
-        max_dist_m: 1200
+        min_elev_ft: 7600
+        max_dist_m: 1600
 
   - id: dicks
     name: Dicks Peak
-    summit: {lat: 38.90056, lon: -120.15083, elev_ft: 9974}   # Wikipedia
-    snap_radius_m: 300
+    summit: {lat: 38.90051, lon: -120.15101, elev_ft: 9974}
     slopes:
       - id: dicks-north-east
-        name: North / Northeast face
-        aspect_range: [330, 90]      # CHECK
-        min_slope_deg: 28
+        name: North face to Dicks Lake
+        aspect_range: [330, 90]
+        min_slope_deg: 25
         max_slope_deg: 55
-        min_elev_ft: 8200
+        min_elev_ft: 8400
+        max_dist_m: 1200
+      - id: dicks-southeast
+        name: Southeast face to Half Moon Lake
+        aspect_range: [90, 180]
+        min_slope_deg: 25
+        max_slope_deg: 50
+        min_elev_ft: 8100
         max_dist_m: 1200
 
   - id: tallac
     name: Mount Tallac
-    summit: {lat: 38.90611, lon: -120.09889, elev_ft: 9739}   # Wikipedia
-    snap_radius_m: 300
+    summit: {lat: 38.90590, lon: -120.09900, elev_ft: 9735}
     slopes:
       - id: tallac-north
-        name: North / Northeast face (Cross area)
-        aspect_range: [330, 60]      # CHECK
-        min_slope_deg: 30
+        name: North bowl, The Corkscrew, Corkscrew Trees, east ridge
+        aspect_range: [330, 60]
+        min_slope_deg: 25
         max_slope_deg: 55
-        min_elev_ft: 7800
-        max_dist_m: 1300
+        min_elev_ft: 7000
+        max_dist_m: 1800
       - id: tallac-east
-        name: East / Southeast bowls toward Fallen Leaf
-        aspect_range: [60, 160]      # CHECK
-        min_slope_deg: 28
+        name: The Cross and Cross Bowl
+        aspect_range: [30, 120]
+        min_slope_deg: 25
+        max_slope_deg: 55
+        min_elev_ft: 7500
+        max_dist_m: 1500
+      - id: tallac-cathedral
+        name: Cathedral Bowl (southeast)
+        aspect_range: [100, 200]
+        min_slope_deg: 25
         max_slope_deg: 50
         min_elev_ft: 7500
         max_dist_m: 1500
