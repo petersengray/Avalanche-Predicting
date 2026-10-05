@@ -1,0 +1,46 @@
+name: Daily corn forecast
+
+on:
+  schedule:
+    # 12:17 UTC = 5:17 AM PDT / 4:17 AM PST. GitHub only runs schedules
+    # from the default branch, and may start them a little late.
+    - cron: "17 12 * * *"
+  workflow_dispatch: {}   # "Run workflow" button on the Actions tab
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-forecast
+  cancel-in-progress: false
+
+jobs:
+  forecast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-daily.txt
+
+      - name: Install
+        run: pip install -r requirements-daily.txt
+
+      - name: Run forecast
+        run: python daily_forecast.py
+
+      - name: Commit forecast
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add docs/data/forecast.json
+          if git diff --cached --quiet; then
+            echo "No change"
+          else
+            git commit -m "Daily forecast $(date -u +%Y-%m-%d)"
+            git push
+          fi

@@ -189,6 +189,41 @@ def polygon_mask(geom_ll, shape, transform, crs):
     return features.geometry_mask([g], out_shape=shape, transform=transform, invert=True)
 
 
+def write_slope_cells(slope_masks, features, elev, slope_deg, aspect_deg, transform, crs,
+                      cell_m, path, stride=2):
+    """Everything the daily forecast needs, without the DEM: a sample of
+    cells (every `stride`-th cell, i.e. a 20 m grid) for each slope with
+    elevation, steepness, facing direction and skyline in 72 directions."""
+    import horizon
+    from rasterio.warp import transform as warp
+
+    rows_all, cols_all, sid_all = [], [], []
+    rr, cc = np.mgrid[0:elev.shape[0], 0:elev.shape[1]]
+    grid = (rr % stride == 0) & (cc % stride == 0)
+    for i, (sid, m) in enumerate(slope_masks):
+        sel = m & grid
+        r, c = np.nonzero(sel)
+        rows_all.append(r); cols_all.append(c); sid_all.append(np.full(len(r), i))
+    rows = np.concatenate(rows_all); cols = np.concatenate(cols_all)
+    sidx = np.concatenate(sid_all)
+    print(f"[cells] computing skyline for {len(rows)} cells ...")
+    hz = horizon.horizon_angles(elev, cell_m, rows, cols)
+    xs, ys = transform * (cols + 0.5, rows + 0.5)
+    lons, lats = warp(crs, "EPSG:4326", list(xs), list(ys))
+    np.savez_compressed(
+        path,
+        slope_ids=np.array([sid for sid, _ in slope_masks]),
+        slope_index=sidx.astype(np.int16),
+        lat=np.array(lats, dtype=np.float32), lon=np.array(lons, dtype=np.float32),
+        elev_m=elev[rows, cols].astype(np.float32),
+        slope_deg=slope_deg[rows, cols].astype(np.float32),
+        aspect_deg=aspect_deg[rows, cols].astype(np.float32),
+        horizon_deg=np.round(hz * 2).astype(np.int16),  # half-degree units
+        cell_area_m2=np.float32((cell_m * stride) ** 2),
+    )
+    print(f"wrote {path}")
+
+
 # -------------------------------------------------------------- main ----
 
 def build(config_path="tours.yaml", dem_path=None, preview=True):
@@ -203,6 +238,7 @@ def build(config_path="tours.yaml", dem_path=None, preview=True):
 
     drawn = load_drawn_areas(cfg.get("ski_areas", "ski_areas.geojson"))
     features_out, report, overlay = [], [], np.zeros(elev.shape, dtype=int)
+    slope_masks = []
     summits = []
     snapped = [snap_summit(elev, transform, crs, cell_m, t["summit"],
                            t.get("snap_radius_m", 300)) for t in cfg["tours"]]
@@ -267,6 +303,7 @@ def build(config_path="tours.yaml", dem_path=None, preview=True):
                 "spec": spec,
             }
             features_out.append({"type": "Feature", "geometry": geom, "properties": props})
+            slope_masks.append((spec["id"], m))
             report.append(f"    {spec['id']:<22} [{source}] {props['area_ha']:6.1f} ha  "
                           f"slope {props['mean_slope_deg']:4.1f}° (p90 {props['p90_slope_deg']})  "
                           f"aspect {props['mean_aspect_deg']:3.0f}°  "
@@ -276,6 +313,8 @@ def build(config_path="tours.yaml", dem_path=None, preview=True):
     with open(out, "w") as f:
         json.dump({"type": "FeatureCollection", "region": region, "features": features_out}, f)
     print("\n".join(report))
+    write_slope_cells(slope_masks, features_out, elev, slope_deg, aspect_deg, transform, crs,
+                      cell_m, os.path.join(DATA_DIR, "slope_cells.npz"))
     print(f"\nwrote {out} ({len(features_out)} slopes)")
 
     if preview:
