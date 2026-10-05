@@ -90,12 +90,15 @@ tours:
         min_elev_ft: 6600
         max_dist_m: 1500
       - id: maggies-north-east
-        name: Maggies North — east side toward Bayview
-        aspect_range: [45, 135]
-        min_slope_deg: 25
-        max_slope_deg: 50
-        min_elev_ft: 6800
-        max_dist_m: 1500
+        name: Maggies North — northeast to southeast side
+        # The whole NE-to-SE side of Maggies North is skiable.
+        summit: {lat: 38.94125, lon: -120.11464, elev_ft: 8499}
+        whole_face: true
+        aspect_range: [30, 160]
+        min_slope_deg: 15
+        max_slope_deg: 60
+        min_elev_ft: 6850
+        max_dist_m: 1300
       - id: maggies-south-ne
         name: Maggies South — northeast face past Granite Lake
         aspect_range: [0, 90]
@@ -127,13 +130,15 @@ tours:
         max_slope_deg: 55
         min_elev_ft: 8400
         max_dist_m: 1200
-      - id: dicks-southeast
-        name: Southeast face to Half Moon Lake
-        aspect_range: [90, 180]
-        min_slope_deg: 25
-        max_slope_deg: 50
-        min_elev_ft: 8100
-        max_dist_m: 1200
+      - id: dicks-south
+        name: South face to Half Moon Lake
+        # The whole south face is skiable.
+        whole_face: true
+        aspect_range: [110, 215]
+        min_slope_deg: 15
+        max_slope_deg: 60
+        min_elev_ft: 8150
+        max_dist_m: 1300
 
   - id: tallac
     name: Mount Tallac

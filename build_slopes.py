@@ -147,6 +147,11 @@ def slope_mask(elev, slope_deg, aspect_deg, cell_m, sr, sc, spec, other_summits=
     m = ndimage.binary_closing(m, structure=np.ones((3, 3))) & face
     m = ndimage.binary_opening(m, structure=np.ones((2, 2)))
 
+    if spec.get("whole_face"):
+        # Treat the whole face as skiable: smooth it into one region.
+        m = ndimage.binary_closing(m, structure=np.ones((3, 3)), iterations=4) & face
+        m = ndimage.binary_fill_holes(m)
+
     # Drop specks under ~0.5 ha.
     labels2, n2 = ndimage.label(m)
     sizes = ndimage.sum(m, labels2, range(1, n2 + 1))
@@ -202,6 +207,16 @@ def build(config_path="tours.yaml", dem_path=None, preview=True):
     snapped = [snap_summit(elev, transform, crs, cell_m, t["summit"],
                            t.get("snap_radius_m", 300)) for t in cfg["tours"]]
     distinct = {(r, c) for r, c, _, _ in snapped}
+    # Slopes may name their own sub-summit (e.g. Maggies North); those count
+    # as summits too when splitting terrain between neighboring peaks.
+    sub_summits = {}
+    for t in cfg["tours"]:
+        for sp in t["slopes"]:
+            if "summit" in sp:
+                r, c, _, _ = snap_summit(elev, transform, crs, cell_m, sp["summit"],
+                                         sp["summit"].get("snap_radius_m", 200))
+                sub_summits[sp["id"]] = (r, c)
+                distinct.add((r, c))
     for t_i, tour in enumerate(cfg["tours"], start=1):
         s = tour["summit"]
         sr, sc, s_elev, moved = snapped[t_i - 1]
@@ -216,8 +231,10 @@ def build(config_path="tours.yaml", dem_path=None, preview=True):
         for spec in tour["slopes"]:
             # A slope can set its own `start` (top of the run) when the skied
             # face begins below a flat shoulder rather than at the summit.
+            owner = sub_summits.get(spec["id"], (sr, sc))
             ar, ac = (to_pixel(transform, crs, spec["start"]["lat"], spec["start"]["lon"])
-                      if "start" in spec else (sr, sc))
+                      if "start" in spec else owner)
+            others = [p for p in distinct if p != owner]
             if spec["id"] in drawn:
                 # Hand-traced ski area (ski_areas.geojson) wins over the
                 # automatic aspect/steepness detection.
@@ -226,7 +243,7 @@ def build(config_path="tours.yaml", dem_path=None, preview=True):
                 source = "traced"
             else:
                 m = slope_mask(elev, slope_deg, aspect_deg, cell_m, ar, ac, spec, others,
-                               owner=(sr, sc))
+                               owner=owner)
                 geom = mask_to_geojson(m, transform, crs)
                 source = "derived"
             overlay[m] = len(features_out) + 1
