@@ -1,6 +1,6 @@
 # Snow Softening Forecast
-
-A planning aid for backcountry skiers on Lake Tahoe's West Shore: for each
+A difficult problem to solve skiing backcountry in the west last season was estimating when to get up to ski before it got too hot out and the snow was too unstable to safe ski on. I figured there has to be a way to approximate the heating due to the sun on different aspect angles, so that we can make these decisions before we go out.
+Essentially, this is a planning aid for backcountry skiers on Lake Tahoe's West Shore: for each
 tour and ski area, when the snow should soften to corn and when it gets too
 wet, from terrain, sun angle and the NWS forecast.
 
