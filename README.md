@@ -1,4 +1,4 @@
-# Avalanche-Predicting
+# Snow Softening Forecast
 
 A planning aid for backcountry skiers on Lake Tahoe's West Shore: for each
 tour and ski area, when the snow should soften to corn and when it gets too
